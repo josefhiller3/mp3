@@ -101,7 +101,7 @@ module.exports = function(router) {
 
         const users = await User.find(where).sort(sort).select(select).skip(skip).limit(limit);
         if (users.length === 0) {
-            return res.status(204).json({ message: 'No users found' });
+            return res.status(200).json({ message: '', data: []});
         }  
         res.status(200).json({ message: 'OK', data: users });
     }
@@ -112,20 +112,27 @@ module.exports = function(router) {
     });
 
     router.get('/users/:id', async (req, res) => {
-        try {
-            const user = await User.findById(req.params.id);
-            if (!user) {
-                return res.status(404).json({ message: 'User not found' });
-            }
-            res.status(200).json({ message: 'OK', data: user });
-
+      try {
+        let select = {};
+        if (req.query.select) {
+          try {
+            select = JSON.parse(req.query.select);
+          } catch {
+            return res.status(400).json({ message: 'Invalid select query' });
+          }
         }
-        catch (err) {
-            if (err.name === 'CastError') {
-                return res.status(400).json({ message: 'Invalid ID format' });
-            }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        const user = await User.findById(req.params.id).select(select);
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
         }
+        res.status(200).json({ message: 'OK', data: user });
+      } catch (err) {
+        if (err.name === 'CastError') {
+          return res.status(400).json({ message: 'Invalid ID format' });
+        }
+        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+      }
+  
     });
 
     router.put('/users/:id', async (req, res) => {

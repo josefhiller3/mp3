@@ -75,7 +75,7 @@ module.exports = function(router) {
           }
           const tasks = await Task.find(where).sort(sort).select(select).skip(skip).limit(limit);
           if (tasks.length === 0) {
-            return res.status(204).json({ message: 'No tasks found' });
+            return res.status(200).json({ message: 'OK', data: []});
 
           }
           res.status(200).json({ message: 'OK', data: tasks });
