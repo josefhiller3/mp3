@@ -45,17 +45,71 @@ module.exports = function(router) {
     });
 
     router.get('/users', async (req, res) => {
+
       try {
-        const users = await User.find();
+        let where = {};
+        let sort = {};
+        let select = {};
+        let skip = 0;
+        let limit = 0;
+        let to_count = false;
+        if (req.query.where) {
+          try {
+            where = JSON.parse(req.query.where);
+          } catch (err) {
+            return res.status(400).json({ message: 'Invalid where query' });
+          }
+        }
+        if (req.query.sort) {
+          try {
+            sort = JSON.parse(req.query.sort);
+          } catch (err) {
+            return res.status(400).json({ message: 'Invalid sort query' });
+          }
+        }
+        if (req.query.select) {
+          try {
+            select = JSON.parse(req.query.select);
+          } catch {
+            return res.status(400).json({ message: 'Invalid select query' });
+          }
+        }
+        if (req.query.skip) {
+          try {
+            skip = parseInt(req.query.skip);
+          } catch {
+            return res.status(400).json({ message: 'Invalid skip query' });
+          }
+        }
+
+        if (req.query.limit) {
+          try {
+            limit = parseInt(req.query.limit);
+          } catch {
+            return res.status(400).json({ message: 'Invalid limit query' });
+          }
+        }
+
+        if (req.query.count && req.query.count === 'true') {
+          to_count = true;
+        }
+
+        if (to_count) {
+          await User.countDocuments(where);
+          return res.status(200).json({ message: 'OK', data: count });
+        }
+
+        const users = await User.find(where).sort(sort).select(select).skip(skip).limit(limit);
         if (users.length === 0) {
             return res.status(204).json({ message: 'No users found' });
-        }
+        }  
         res.status(200).json({ message: 'OK', data: users });
-        }
-        catch (err) {
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
-        }
-    })
+    }
+  
+     catch (err) {
+        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+     }
+    });
 
     router.get('/users/:id', async (req, res) => {
         try {
