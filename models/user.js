@@ -95,7 +95,7 @@ module.exports = function(router) {
         }
 
         if (to_count) {
-          await User.countDocuments(where);
+          const count = await User.countDocuments(where);
           return res.status(200).json({ message: 'OK', data: count });
         }
 
