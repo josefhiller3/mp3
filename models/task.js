@@ -18,6 +18,7 @@ var TaskSchema = new mongoose.Schema({
 });
 
 const Task = mongoose.model('Task', TaskSchema);
+// const User = mongoose.model('User');
 
 // Export the Mongoose model
 module.exports = function(router) {
@@ -81,7 +82,7 @@ module.exports = function(router) {
           res.status(200).json({ message: 'OK', data: tasks });
 
         } catch (err) {
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
+            res.status(500).json({ message: 'Internal Server Error', data: null});
         }
         //     const tasks = await Task.find();
         //     if (tasks.length === 0) {
@@ -106,7 +107,7 @@ module.exports = function(router) {
    
        }
        catch (err) {
-        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        res.status(500).json({ message: 'Internal Server Error', data: null});
        }
     });
 
@@ -129,7 +130,7 @@ module.exports = function(router) {
             if (err.name === 'CastError') {
                 return res.status(400).json({ message: 'Invalid ID format' });
             }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
+            res.status(500).json({ message: 'Internal Server Error', data: null});
         }
 
         // try {
@@ -150,38 +151,113 @@ module.exports = function(router) {
 
     router.put('/tasks/:id', async (req, res) => {
         try {
-            const {name, description, deadline, completed, assignedUser, assignedUserName} = req.body;
-            if (!name || !deadline) {
-                return res.status(400).json({ message: 'Name and deadline are required' });
-            }
-            const updatedTask = await Task.findByIdAndUpdate(req.params.id, {name, description, deadline, completed, assignedUser, assignedUserName}, { new: true, overwrite: true});
-            if (!updatedTask) {
+            const id = req.params.id;
+            const newTask = req.body;
+            const oldTask = await Task.findById(id);
+            if (!oldTask) {
                 return res.status(404).json({ message: 'Task not found' });
             }
-            res.status(200).json({ message: 'OK', data: updatedTask});
-        }
-        catch (err) {
-            if (err.name === 'CastError') {
-               return res.status(400).json({ message: 'Invalid ID format' });
+            const updatedTask = await Task.findByIdAndUpdate(id, newTask, {new:true, overwrite:true});
+            if (oldTask.assignedUser && oldTask.assignedUser !== newTask.assignedUser) {
+                await mongoose.model('User').updateOne({_id: oldTask.assignedUser}, {$pull: {pendingTasks: id}}); 
+
             }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
-        }
+            if (newTask.assignedUser) {
+                await mongoose.model('User').updateOne({_id: newTask.assignedUser}, {$addToSet: {pendingTasks: id}});
+            }
+            res.status(200).json({ message: 'OK', data: updatedTask });
+            } catch(err) {
+                if (err.name === 'CastError') {
+                    return res.status(400).json({ message: 'Invalid ID format' });
+                }
+                res.status(500).json({ message: 'Internal Server Error', data: null});
+            }
+        // try {
+        //     const {name, description, deadline, completed, assignedUser, assignedUserName} = req.body;
+        //     if (!name || !deadline) {
+        //         return res.status(400).json({ message: 'Name and deadline are required' });
+        //     }
+        //     const oldTask = await Task.findById(req.params.id);
+        //     if (!oldTask) {
+        //         return res.status(404).json({ message: 'Task not found' });
+        //     }
+        //     const oldUserId = oldTask.assignedUser;
+        //     const newUserId = assignedUser;
+            
+        //     if (oldUserId && oldUserId !== newUserId) {
+        //         await User.findByIdAndUpdate(oldUserId, { $pull: { pendingTasks: oldTask._id.toString() } });
+        //     }
+
+        //     if (newUserId) {
+        //       const user = await User.findById(newUserId);
+        //       if (!user) {
+        //         return res.status(404).json({ message: 'User not found' });
+        //       }
+        //       if (!user.pendingTasks.includes(oldTask._id.toString())) {
+        //         user.pendingTasks.push(oldTask._id.toString());
+        //         await user.save();
+        //       }
+        //     }
+        //     const updatedTask = await Task.findByIdAndUpdate(req.params.id, {name, description, deadline, completed, assignedUser: newUserId || "", assignedUserName: newUserId ? assignedUserName : "unassigned", dateCreated: oldTask.dateCreated || new Date()}, {new:true, overwrite:true});
+        //     res.status(200).json({ message: 'OK', data: updatedTask });
+        // }
+        // catch (err) {
+        //     if (err.name === 'CastError') {
+        //        return res.status(400).json({ message: 'Invalid ID format' });
+        //     }
+        //     res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        // }
         
     });
 
     router.delete('/tasks/:id', async (req, res) => {
         try {
-          const deletedTask = await Task.findByIdAndDelete(req.params.id);
-          if (!deletedTask) {
-            return res.status(404).json({ message: 'Task not found'});
-          }
-          res.status(204).send();
-          } catch (err) {
-            if (err.name === 'CastError') {
-                return res.status(400).json({ message: 'Invalid ID format' });
+            const id = req.params.id;
+            const task = await Task.findById(id);
+            if (!task) {
+                return res.status(404).json({ message: 'Task not found' });
             }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
-          }
+            await Task.findByIdAndDelete(id);
+            if (task.assignedUser) { 
+                await mongoose.model('User').updateOne({_id: task.assignedUser}, {$pull: {pendingTasks: id} });
+            }
+            res.status(204).send();
+        }
+        catch (err) {
+            if (err.name === 'CastError') {
+              return res.status(400).json({ message: 'Invalid ID format' });
+            }
+              res.status(500).json({ message: 'Internal Server Error', data: null});
+        
+        }
+        // try {
+        //     const task = await Task.findById(req.params.id);
+        //     if (!task) {
+        //         return res.status(404).json({ message: 'Task not found' });
+        //     }
+        //     if (task.assignedUser) {
+        //         await User.findByIdAndUpdate(task.assignedUser, { $pull: { pendingTasks: task._id.toString() } });
+        //     }
+        //     await Task.findByIdAndDelete(req.params.id);
+        //     res.status(204).send();
+        // } catch (err) {
+        //     if (err.name === 'CastError') {
+        //         return res.status(400).json({ message: 'Invalid ID format' });
+        //     }
+        //     res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        // }
+        // try {
+        //   const deletedTask = await Task.findByIdAndDelete(req.params.id);
+        //   if (!deletedTask) {
+        //     return res.status(404).json({ message: 'Task not found'});
+        //   }
+        //   res.status(204).send();
+        //   } catch (err) {
+        //     if (err.name === 'CastError') {
+        //         return res.status(400).json({ message: 'Invalid ID format' });
+        //     }
+        //     res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        //   }
     
     });
 

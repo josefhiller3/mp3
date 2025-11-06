@@ -21,12 +21,14 @@ var UserSchema = new mongoose.Schema({
 // Export the Mongoose model
 const User = mongoose.model('User', UserSchema);
 
+// const Task = mongoose.model('Task');
+
 module.exports = function(router) {
     router.post('/users', async (req, res) => {
     try {
       const { name, email, pendingTasks } = req.body;
       if (!name || !email) {
-        return res.status(400).json({ message: 'Name and email are required' });
+        return res.status(400).json({ message: 'Name and email are required'});
       }
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -39,7 +41,7 @@ module.exports = function(router) {
     }
     catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Internal Server Error', data: err.message });
+        res.status(500).json({ message: 'Internal Server Error', data: null });
     }
     
     });
@@ -107,7 +109,7 @@ module.exports = function(router) {
     }
   
      catch (err) {
-        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        res.status(500).json({ message: 'Internal Server Error', data: null });
      }
     });
 
@@ -130,45 +132,80 @@ module.exports = function(router) {
         if (err.name === 'CastError') {
           return res.status(400).json({ message: 'Invalid ID format' });
         }
-        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        res.status(500).json({ message: 'Internal Server Error', data: null });
       }
   
     });
 
     router.put('/users/:id', async (req, res) => {
-        try {
-            const { name, email, pendingTasks } = req.body;
-            if (!name || !email) {
-                return res.status(400).json({ message: 'Name and email are required' });
-            }
-            const updatedUser = await User.findByIdAndUpdate(req.params.id, { name, email, pendingTasks}, { new: true, overwrite: true});
-            if (!updatedUser) {
-                return res.status(404).json({ message: 'User not found' });
-            }
-            res.status(200).json({ message: 'OK', data: updatedUser });
+      try {
+        const id = req.params.id;
+        const newUser = req.body;
+        const oldUser = await User.findById(id);
+        if (!oldUser) {
+          return res.status(404).json({ message: 'User not found' });
         }
-        catch (err) {
-            if (err.name === 'CastError') {
-               return res.status(400).json({ message: 'Invalid ID format' });
-            }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        const updatedUser = await User.findByIdAndUpdate(id, newUser, {new:true, overwrite:true});
+        await mongoose.model('Task').updateMany({assignedUser: id}, {$set: {assignedUser: '', assignedUserName: 'unassigned'}});
+        if (newUser.pendingTasks && newUser.pendingTasks.length > 0) {
+          await mongoose.model('Task').updateMany({_id: {$in: newUser.pendingTasks}}, {$set: {assignedUser: id, assignedUserName: newUser.name}});
         }
+        res.status(200).json({ message: 'OK', data: updatedUser });
+      } catch (err) {
+        if (err.name === 'CastError') {
+          return res.status(400).json({ message: 'Invalid ID format' });
+        }
+        res.status(500).json({ message: 'Internal Server Error', data: null });
+      }
+      // try {
+        //     const { name, email, pendingTasks } = req.body;
+        //     if (!name || !email) {
+        //         return res.status(400).json({ message: 'Name and email are required' });
+        //     }
+        //     const updatedUser = await User.findByIdAndUpdate(req.params.id, { name, email, pendingTasks}, { new: true, overwrite: true});
+        //     if (!updatedUser) {
+        //         return res.status(404).json({ message: 'User not found' });
+        //     }
+        //     res.status(200).json({ message: 'OK', data: updatedUser });
+        // }
+        // catch (err) {
+        //     if (err.name === 'CastError') {
+        //        return res.status(400).json({ message: 'Invalid ID format' });
+        //     }
+        //     res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        // }
         
     }) ;
 
     router.delete('/users/:id', async (req, res) => {
-        try {
-            const deletedUser = await User.findByIdAndDelete(req.params.id);
-            if (!deletedUser) {
-               return res.status(404).json({ message: 'User not found' });
-            }
-            res.status(204).send();
-        } catch (err) {
-            if (err.name === 'CastError') {
-                return res.status(400).json({ message: 'Invalid ID format' });
-            }
-            res.status(500).json({ message: 'Internal Server Error', error: err.message });
+      try {
+        const id = req.params.id;
+        const user = await User.findById(id);
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
         }
+        await mongoose.model('Task').updateMany({assignedUser: id}, {$set: {assignedUser: '', assignedUserName: "unassigned"}});
+        await User.findByIdAndDelete(id);
+        res.status(204).send(); 
+      } 
+      catch (err) {
+        if (err.name === 'CastError') {
+          return res.status(400).json({ message: 'Invalid ID format' });
+        }
+        res.status(500).json({ message: 'Internal Server Error', data: null });
+      }
+      // try {
+        //     const deletedUser = await User.findByIdAndDelete(req.params.id);
+        //     if (!deletedUser) {
+        //        return res.status(404).json({ message: 'User not found' });
+        //     }
+        //     res.status(204).send();
+        // } catch (err) {
+        //     if (err.name === 'CastError') {
+        //         return res.status(400).json({ message: 'Invalid ID format' });
+        //     }
+        //     res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        // }
     });
     return router;
 }
